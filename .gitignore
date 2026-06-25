@@ -5,3 +5,6 @@ bin/
 # Ignore OS-generated files
 .DS_Store
 Thumbs.db
+
+# Ignore downloaded JavaCC tool
+javacc.jar

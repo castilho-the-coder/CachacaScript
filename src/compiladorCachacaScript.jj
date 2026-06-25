@@ -10,59 +10,11 @@ options
 
 PARSER_BEGIN(compiladorCachacaScript)
 
-
 public class compiladorCachacaScript
 {
-  public static void main(String args[]) throws java.io.FileNotFoundException
+  public static void main(String args[])
   {
-    java.io.FileInputStream fis = new java.io.FileInputStream("src/teste.cs");
-	compiladorCachacaScript parser = new compiladorCachacaScript(fis);
-
-    try
-    {
-      System.out.println("Lendo programa CachaçaScript do arquivo teste.cs...");
-      compiladorCachacaScript.Programa();
-      System.out.println("Programa sintaticamente correto.");
-    }
-    catch (ParseException e)
-	{
-	    System.out.println("🍺 Opa! Parece que a cachaça subiu...");
-	
-	    Token t = e.currentToken != null ? e.currentToken.next : null;
-	
-	    if (t != null) {
-	        System.out.println(
-	            "Erro sintático na linha " + t.beginLine +
-	            ", coluna " + t.beginColumn
-	        );
-	
-	        System.out.println("Token problemático: " + t.image);
-	    }
-	
-	    System.out.println("Detalhes: " + e.getMessage());
-	}
-    catch (TokenMgrError e)
-	{
-	    System.out.println("🍺 Ih rapaz... serviram um caractere estranho no balcão.");
-	    System.out.println("Erro léxico: encontrei algo que não pertence à linguagem CachaçaScript.");
-	
-	    String msg = e.getMessage();
-	
-	    java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
-	        "Lexical error at line (\\d+), column (\\d+)"
-	    );
-	
-	    java.util.regex.Matcher matcher = pattern.matcher(msg);
-	
-	    if (matcher.find()) {
-	        System.out.println(
-	            "📍 Linha: " + matcher.group(1) +
-	            ", coluna: " + matcher.group(2)
-	        );
-	    }
-	
-	    System.out.println("Detalhes: " + msg);
-	}
+    CachacaScriptIDE.main(args);
   }
 }
 
@@ -173,21 +125,38 @@ TOKEN :
  * Um programa começa com abreAButelada, pode ter funções,
  * possui um bloco principal e termina com fechaAButelada.
  * ========================================================= */
-void Programa() :
-{}
+ASTNode Programa() :
+{
+  ASTNode funs;
+  ASTNode mainBlock;
+}
 {
   <INICIO_PROGRAMA>
-  DeclFunListOpt()
-  Bloco()
+  funs=DeclFunListOpt()
+  mainBlock=Bloco()
   <FIM_PROGRAMA>
   <EOF>
+  {
+    ASTNode node = new ASTNode("Programa (abreAButelada ... fechaAButelada)");
+    node.addChild(funs);
+    node.addChild(mainBlock);
+    return node;
+  }
 }
 
 /* Lista opcional de declarações de função antes do bloco principal. */
-void DeclFunListOpt() :
-{}
+ASTNode DeclFunListOpt() :
 {
-  ( DeclFun() )*
+  ASTNode fun;
+  ASTNode node;
+}
+{
+  { node = new ASTNode("Lista de Funções"); }
+  (
+    fun=DeclFun()
+    { node.addChild(fun); }
+  )*
+  { return node; }
 }
 
 /* =========================================================
@@ -195,35 +164,55 @@ void DeclFunListOpt() :
  * ========================================================= */
 
 /* Bloco delimitado por abreBarril e fechaBarril. */
-void Bloco() :
-{}
+ASTNode Bloco() :
+{
+  ASTNode cmds;
+}
 {
   <DELIMITADOR_ESQ>
-  ListaComandosOpt()
+  cmds=ListaComandosOpt()
   <DELIMITADOR_DIR>
+  {
+    ASTNode node = new ASTNode("Bloco (abreBarril ... fechaBarril)");
+    node.addChild(cmds);
+    return node;
+  }
 }
 
 /* Zero ou mais comandos dentro de um bloco. */
-void ListaComandosOpt() :
-{}
+ASTNode ListaComandosOpt() :
 {
-  ( Comando() )*
+  ASTNode cmd;
+  ASTNode node;
+}
+{
+  { node = new ASTNode("Comandos"); }
+  (
+    cmd=Comando()
+    { node.addChild(cmd); }
+  )*
+  { return node; }
 }
 
 /* Um comando da linguagem. */
-void Comando() :
-{}
+ASTNode Comando() :
 {
-    Decl() <PONTO_VIRG>          // declaração de variável
-  | StmtFromId() <PONTO_VIRG>    // atribuição ou chamada de função
-  | Io() <PONTO_VIRG>            // entrada ou saída
-  | If()                         // condicional
-  | While()                      // laço enquanto
-  | RepeatUntil()                // laço faça-até
-  | For()                        // laço for
-  | Ret() <PONTO_VIRG>           // retorno de função
-  | Bloco()                      // bloco aninhado
-  | <PONTO_VIRG>                 // comando vazio
+  ASTNode c = null;
+}
+{
+  (
+      c=Decl() <PONTO_VIRG>
+    | c=StmtFromId() <PONTO_VIRG>
+    | c=Io() <PONTO_VIRG>
+    | c=If()
+    | c=While()
+    | c=RepeatUntil()
+    | c=For()
+    | c=Ret() <PONTO_VIRG>
+    | c=Bloco()
+    | <PONTO_VIRG> { c = new ASTNode("Comando Vazio (viraDose)"); }
+  )
+  { return c; }
 }
 
 /* =========================================================
@@ -231,34 +220,74 @@ void Comando() :
  * ========================================================= */
 
 /* Declara variável tipada ou variável genérica garrafa. */
-void Decl() :
-{}
+ASTNode Decl() :
 {
-  ( Tipo() | <TIPO_VAR> ) ListaDecl()
+  ASTNode typeNode = null;
+  Token tVar = null;
+  ASTNode listDecl;
+}
+{
+  (
+      typeNode=Tipo()
+    | tVar=<TIPO_VAR>
+  )
+  listDecl=ListaDecl()
+  {
+    ASTNode node = new ASTNode("Declaração");
+    ASTNode typeDetail = (typeNode != null) ? typeNode : new ASTNode("Tipo: garrafa (var)");
+    node.addChild(typeDetail);
+    node.addChild(listDecl);
+    return node;
+  }
 }
 
 /* Lista de itens declarados separados por maisUmaDose. */
-void ListaDecl() :
-{}
+ASTNode ListaDecl() :
 {
-  ItemDecl() ( <VIRGULA> ItemDecl() )*
+  ASTNode item;
+  ASTNode node;
+}
+{
+  { node = new ASTNode("Lista Itens"); }
+  item=ItemDecl() { node.addChild(item); }
+  ( <VIRGULA> item=ItemDecl() { node.addChild(item); } )*
+  { return node; }
 }
 
 /* Item declarado: apenas nome ou nome com valor inicial. */
-void ItemDecl() :
-{}
+ASTNode ItemDecl() :
 {
-  <ID> ( <ATRIBUICAO> Expr() )?
+  Token tId;
+  ASTNode initVal = null;
+}
+{
+  tId=<ID> ( <ATRIBUICAO> initVal=Expr() )?
+  {
+    ASTNode node = new ASTNode("Variável: " + tId.image);
+    if (initVal != null) {
+      ASTNode attr = new ASTNode("Atribuição Inicial (engarrafar)");
+      attr.addChild(initVal);
+      node.addChild(attr);
+    }
+    return node;
+  }
 }
 
 /* Tipos primitivos da linguagem. */
-void Tipo() :
-{}
+ASTNode Tipo() :
 {
-    <TIPO_INT>
-  | <TIPO_FLOAT>
-  | <TIPO_BOOL>
-  | <TIPO_STRING>
+  Token t = null;
+}
+{
+  (
+      t=<TIPO_INT>
+    | t=<TIPO_FLOAT>
+    | t=<TIPO_BOOL>
+    | t=<TIPO_STRING>
+  )
+  {
+    return new ASTNode("Tipo: " + t.image);
+  }
 }
 
 /* =========================================================
@@ -266,18 +295,37 @@ void Tipo() :
  * ========================================================= */
 
 /* Um comando que começa com identificador. */
-void StmtFromId() :
-{}
+ASTNode StmtFromId() :
 {
-  <ID> StmtIdSuffix()
+  Token tId;
+  ASTNode suffix;
+}
+{
+  tId=<ID> suffix=StmtIdSuffix(tId.image)
+  { return suffix; }
 }
 
 /* Depois do ID, decide se é atribuição ou chamada de função. */
-void StmtIdSuffix() :
-{}
+ASTNode StmtIdSuffix(String idName) :
 {
-    <ATRIBUICAO> Expr()
-  | <ABRE_PAR> ArgsOpt() <FECHA_PAR>
+  ASTNode expr;
+  ASTNode args;
+}
+{
+  (
+      <ATRIBUICAO> expr=Expr()
+      {
+        ASTNode node = new ASTNode("Atribuição (engarrafar) para: " + idName);
+        node.addChild(expr);
+        return node;
+      }
+    | <ABRE_PAR> args=ArgsOpt() <FECHA_PAR>
+      {
+        ASTNode node = new ASTNode("Chamada de Função: " + idName);
+        node.addChild(args);
+        return node;
+      }
+  )
 }
 
 /* =========================================================
@@ -285,25 +333,51 @@ void StmtIdSuffix() :
  * ========================================================= */
 
 /* Comando de impressão ou leitura. */
-void Io() :
-{}
+ASTNode Io() :
 {
-    <IMPRIME> <ABRE_PAR> PrintList() <FECHA_PAR>
-  | <ENTRADA> <ABRE_PAR> ReadList() <FECHA_PAR>
+  ASTNode list;
+}
+{
+  (
+      <IMPRIME> <ABRE_PAR> list=PrintList() <FECHA_PAR>
+      {
+        ASTNode node = new ASTNode("Impressão (serveNoCopo)");
+        node.addChild(list);
+        return node;
+      }
+    | <ENTRADA> <ABRE_PAR> list=ReadList() <FECHA_PAR>
+      {
+        ASTNode node = new ASTNode("Leitura (pedeNoBalcao)");
+        node.addChild(list);
+        return node;
+      }
+  )
 }
 
 /* Lista de expressões para impressão. */
-void PrintList() :
-{}
+ASTNode PrintList() :
 {
-  Expr() ( <VIRGULA> Expr() )*
+  ASTNode expr;
+  ASTNode node;
+}
+{
+  { node = new ASTNode("Lista de Expressões"); }
+  expr=Expr() { node.addChild(expr); }
+  ( <VIRGULA> expr=Expr() { node.addChild(expr); } )*
+  { return node; }
 }
 
 /* Lista de identificadores para leitura. */
-void ReadList() :
-{}
+ASTNode ReadList() :
 {
-  <ID> ( <VIRGULA> <ID> )*
+  Token tId;
+  ASTNode node;
+}
+{
+  { node = new ASTNode("Lista de Destinos"); }
+  tId=<ID> { node.addChild(new ASTNode("Variável: " + tId.image)); }
+  ( <VIRGULA> tId=<ID> { node.addChild(new ASTNode("Variável: " + tId.image)); } )*
+  { return node; }
 }
 
 /* =========================================================
@@ -311,20 +385,49 @@ void ReadList() :
  * ========================================================= */
 
 /* Condicional com marcador opcional mestreAlambique. */
-void If() :
-{}
+ASTNode If() :
 {
-  ( <MARCA_SE> )?
-  <SE> <ABRE_PAR> Expr() <FECHA_PAR>
-  Bloco()
-  ElseOpt()
+  boolean hasMarca = false;
+  ASTNode cond;
+  ASTNode thenBloc;
+  ASTNode elseBloc = null;
+}
+{
+  ( <MARCA_SE> { hasMarca = true; } )?
+  <SE> <ABRE_PAR> cond=Expr() <FECHA_PAR> thenBloc=Bloco()
+  elseBloc=ElseOpt()
+  {
+    String label = "Condicional (seDerBoa)";
+    if (hasMarca) {
+      label += " [mestreAlambique]";
+    }
+    ASTNode node = new ASTNode(label);
+    node.addChild(cond);
+    node.addChild(thenBloc);
+    if (elseBloc != null) {
+      node.addChild(elseBloc);
+    }
+    return node;
+  }
 }
 
 /* Else opcional. */
-void ElseOpt() :
-{}
+ASTNode ElseOpt() :
 {
-  ( <SENAO> Bloco() )?
+  ASTNode elseBloc = null;
+}
+{
+  (
+    <SENAO> elseBloc=Bloco()
+  )?
+  {
+    if (elseBloc != null) {
+      ASTNode node = new ASTNode("Senão (seDerRuim)");
+      node.addChild(elseBloc);
+      return node;
+    }
+    return null;
+  }
 }
 
 /* =========================================================
@@ -332,60 +435,117 @@ void ElseOpt() :
  * ========================================================= */
 
 /* Laço while. */
-void While() :
-{}
+ASTNode While() :
 {
-  <ENQUANTO> <ABRE_PAR> Expr() <FECHA_PAR> Bloco()
+  ASTNode cond;
+  ASTNode body;
+}
+{
+  <ENQUANTO> <ABRE_PAR> cond=Expr() <FECHA_PAR> body=Bloco()
+  {
+    ASTNode node = new ASTNode("Laço Enquanto (enquantoTemCana)");
+    node.addChild(cond);
+    node.addChild(body);
+    return node;
+  }
 }
 
 /* Laço repeat-until. */
-void RepeatUntil() :
-{}
+ASTNode RepeatUntil() :
 {
-  <FAZ> Bloco() <ATE> <ABRE_PAR> Expr() <FECHA_PAR> <PONTO_VIRG>
+  ASTNode body;
+  ASTNode cond;
+}
+{
+  <FAZ> body=Bloco() <ATE> <ABRE_PAR> cond=Expr() <FECHA_PAR> <PONTO_VIRG>
+  {
+    ASTNode node = new ASTNode("Repita (tomaUma ... ateFicarTonto)");
+    node.addChild(body);
+    node.addChild(cond);
+    return node;
+  }
 }
 
 /* Laço for. */
-void For() :
-{}
+ASTNode For() :
+{
+  ASTNode init = null;
+  ASTNode cond = null;
+  ASTNode post = null;
+  ASTNode body;
+}
 {
   <PARA> <ABRE_PAR>
-    ForInitOpt() <PONTO_VIRG>
-    ExprOpt() <PONTO_VIRG>
-    ForPostOpt()
+    init=ForInitOpt() <PONTO_VIRG>
+    cond=ExprOpt() <PONTO_VIRG>
+    post=ForPostOpt()
   <FECHA_PAR>
-  Bloco()
+  body=Bloco()
+  {
+    ASTNode node = new ASTNode("Laço Para (rodada)");
+    node.addChild(init != null ? init : new ASTNode("Inicialização: Vazia"));
+    node.addChild(cond != null ? cond : new ASTNode("Condição: Vazia"));
+    node.addChild(post != null ? post : new ASTNode("Pós-execução: Vazia"));
+    node.addChild(body);
+    return node;
+  }
 }
 
 /* Inicialização opcional do for. */
-void ForInitOpt() :
-{}
+ASTNode ForInitOpt() :
+{
+  ASTNode typeNode = null;
+  Token tVar = null;
+  ASTNode listDecl = null;
+  ASTNode stmt = null;
+}
 {
   (
-      ( Tipo() | <TIPO_VAR> ) ListaDecl()
-    | IdStmtCab()
+      (
+        ( typeNode=Tipo() | tVar=<TIPO_VAR> )
+        listDecl=ListaDecl()
+        {
+          ASTNode node = new ASTNode("Inicialização (Declaração)");
+          ASTNode typeDetail = (typeNode != null) ? typeNode : new ASTNode("Tipo: garrafa (var)");
+          node.addChild(typeDetail);
+          node.addChild(listDecl);
+          return node;
+        }
+      )
+    | stmt=IdStmtCab() { return stmt; }
   )?
+  { return null; }
 }
 
 /* Condição opcional do for. */
-void ExprOpt() :
-{}
+ASTNode ExprOpt() :
 {
-  ( Expr() )?
+  ASTNode e = null;
+}
+{
+  ( e=Expr() )?
+  { return e; }
 }
 
 /* Pós-execução opcional do for. */
-void ForPostOpt() :
-{}
+ASTNode ForPostOpt() :
 {
-  ( IdStmtCab() )?
+  ASTNode stmt = null;
+}
+{
+  ( stmt=IdStmtCab() )?
+  { return stmt; }
 }
 
 /* Atribuição ou chamada de função dentro do cabeçalho do for. */
-void IdStmtCab() :
-{}
+ASTNode IdStmtCab() :
 {
-  <ID> StmtIdSuffix()
+  Token tId;
+  ASTNode suffix;
+}
+{
+  tId=<ID> suffix=StmtIdSuffix(tId.image)
+  { return suffix; }
 }
 
 /* =========================================================
@@ -393,46 +553,96 @@ void IdStmtCab() :
  * ========================================================= */
 
 /* Declaração de função. */
-void DeclFun() :
-{}
+ASTNode DeclFun() :
 {
-  <FUNCAO> RetTipo() <ID> <ABRE_PAR> ParamsOpt() <FECHA_PAR> Bloco()
+  Token tName;
+  ASTNode retType;
+  ASTNode params;
+  ASTNode body;
+}
+{
+  <FUNCAO> retType=RetTipo() tName=<ID> <ABRE_PAR> params=ParamsOpt() <FECHA_PAR> body=Bloco()
+  {
+    ASTNode node = new ASTNode("Função (alambique): " + tName.image);
+    node.addChild(retType);
+    node.addChild(params);
+    node.addChild(body);
+    return node;
+  }
 }
 
 /* Tipo de retorno: tipo primitivo ou semDose. */
-void RetTipo() :
-{}
+ASTNode RetTipo() :
 {
-    Tipo()
-  | <VOID>
+  ASTNode typeNode = null;
+  Token tVoid = null;
+}
+{
+  (
+      typeNode=Tipo()
+    | tVoid=<VOID>
+  )
+  {
+    if (typeNode != null) return typeNode;
+    return new ASTNode("Tipo Retorno: semDose (void)");
+  }
 }
 
 /* Parâmetros opcionais. */
-void ParamsOpt() :
-{}
+ASTNode ParamsOpt() :
 {
-  ( Params() )?
+  ASTNode params = null;
+}
+{
+  ( params=Params() )?
+  {
+    if (params != null) return params;
+    return new ASTNode("Parâmetros: Nenhum");
+  }
 }
 
 /* Lista de parâmetros separados por maisUmaDose. */
-void Params() :
-{}
+ASTNode Params() :
 {
-  Param() ( <VIRGULA> Param() )*
+  ASTNode p;
+  ASTNode node;
+}
+{
+  { node = new ASTNode("Parâmetros"); }
+  p=Param() { node.addChild(p); }
+  ( <VIRGULA> p=Param() { node.addChild(p); } )*
+  { return node; }
 }
 
 /* Um parâmetro possui tipo e nome. */
-void Param() :
-{}
+ASTNode Param() :
 {
-  Tipo() <ID>
+  ASTNode type;
+  Token tId;
+}
+{
+  type=Tipo() tId=<ID>
+  {
+    ASTNode node = new ASTNode("Parâmetro: " + tId.image);
+    node.addChild(type);
+    return node;
+  }
 }
 
 /* Retorno sem expressão ou com expressão. */
-void Ret() :
-{}
+ASTNode Ret() :
 {
-  <RETORNO> ( Expr() )?
+  ASTNode val = null;
+}
+{
+  <RETORNO> ( val=Expr() )?
+  {
+    ASTNode node = new ASTNode("Retorno (devolveDose)");
+    if (val != null) {
+      node.addChild(val);
+    }
+    return node;
+  }
 }
 
 /* =========================================================
@@ -440,10 +650,18 @@ void Ret() :
  * ========================================================= */
 
 /* Lista opcional de argumentos. */
-void ArgsOpt() :
-{}
+ASTNode ArgsOpt() :
 {
-  ( Expr() ( <VIRGULA> Expr() )* )?
+  ASTNode expr;
+  ASTNode node;
+}
+{
+  { node = new ASTNode("Argumentos"); }
+  (
+    expr=Expr() { node.addChild(expr); }
+    ( <VIRGULA> expr=Expr() { node.addChild(expr); } )*
+  )?
+  { return node; }
 }
 
 /* =========================================================
@@ -453,72 +671,219 @@ void ArgsOpt() :
  * multiplicação/divisão, unários e primários.
  * ========================================================= */
 
-void Expr() :
-{}
+ASTNode Expr() :
 {
-  ExprOr()
+  ASTNode node;
+}
+{
+  node=ExprOr()
+  { return node; }
 }
 
-void ExprOr() :
-{}
+ASTNode ExprOr() :
 {
-  ExprAnd() ( <OU_LOGICO> ExprAnd() )*
+  ASTNode left;
+  ASTNode right;
+  Token tOp;
+}
+{
+  left=ExprAnd()
+  (
+    tOp=<OU_LOGICO>
+    right=ExprAnd()
+    {
+      ASTNode opNode = new ASTNode("Operação Lógica: " + tOp.image);
+      opNode.addChild(left);
+      opNode.addChild(right);
+      left = opNode;
+    }
+  )*
+  { return left; }
 }
 
-void ExprAnd() :
-{}
+ASTNode ExprAnd() :
 {
-  ExprEq() ( <E_LOGICO> ExprEq() )*
+  ASTNode left;
+  ASTNode right;
+  Token tOp;
+}
+{
+  left=ExprEq()
+  (
+    tOp=<E_LOGICO>
+    right=ExprEq()
+    {
+      ASTNode opNode = new ASTNode("Operação Lógica: " + tOp.image);
+      opNode.addChild(left);
+      opNode.addChild(right);
+      left = opNode;
+    }
+  )*
+  { return left; }
 }
 
-void ExprEq() :
-{}
+ASTNode ExprEq() :
 {
-  ExprRel() ( ( <IGUALDADE> | <DIFERENTE> ) ExprRel() )*
+  ASTNode left;
+  ASTNode right;
+  Token tOp;
+}
+{
+  left=ExprRel()
+  (
+    ( tOp=<IGUALDADE> | tOp=<DIFERENTE> )
+    right=ExprRel()
+    {
+      ASTNode opNode = new ASTNode("Comparação: " + tOp.image);
+      opNode.addChild(left);
+      opNode.addChild(right);
+      left = opNode;
+    }
+  )*
+  { return left; }
 }
 
-void ExprRel() :
-{}
+ASTNode ExprRel() :
 {
-  ExprAdd() ( ( <MENOR> | <MAIOR> | <MENOR_IGUAL> | <MAIOR_IGUAL> ) ExprAdd() )*
+  ASTNode left;
+  ASTNode right;
+  Token tOp;
+}
+{
+  left=ExprAdd()
+  (
+    ( tOp=<MENOR> | tOp=<MAIOR> | tOp=<MENOR_IGUAL> | tOp=<MAIOR_IGUAL> )
+    right=ExprAdd()
+    {
+      ASTNode opNode = new ASTNode("Comparação: " + tOp.image);
+      opNode.addChild(left);
+      opNode.addChild(right);
+      left = opNode;
+    }
+  )*
+  { return left; }
 }
 
-void ExprAdd() :
-{}
+ASTNode ExprAdd() :
 {
-  ExprMul() ( ( <SOMA> | <SUBTRACAO> ) ExprMul() )*
+  ASTNode left;
+  ASTNode right;
+  Token tOp;
+}
+{
+  left=ExprMul()
+  (
+    ( tOp=<SOMA> | tOp=<SUBTRACAO> )
+    right=ExprMul()
+    {
+      ASTNode opNode = new ASTNode("Operação Aritmética: " + tOp.image);
+      opNode.addChild(left);
+      opNode.addChild(right);
+      left = opNode;
+    }
+  )*
+  { return left; }
 }
 
-void ExprMul() :
-{}
+ASTNode ExprMul() :
 {
-  ExprUn() ( ( <MULTIPLICACAO> | <DIVISAO> ) ExprUn() )*
+  ASTNode left;
+  ASTNode right;
+  Token tOp;
+}
+{
+  left=ExprUn()
+  (
+    ( tOp=<MULTIPLICACAO> | tOp=<DIVISAO> )
+    right=ExprUn()
+    {
+      ASTNode opNode = new ASTNode("Operação Aritmética: " + tOp.image);
+      opNode.addChild(left);
+      opNode.addChild(right);
+      left = opNode;
+    }
+  )*
+  { return left; }
 }
 
-void ExprUn() :
-{}
+ASTNode ExprUn() :
 {
-    <NEGACAO> ExprUn()
-  | <SUBTRACAO> ExprUn()
-  | Prim()
+  ASTNode expr;
+  Token tOp = null;
+}
+{
+  (
+      tOp=<NEGACAO> expr=ExprUn()
+      {
+        ASTNode node = new ASTNode("Operação Unária: " + tOp.image);
+        node.addChild(expr);
+        return node;
+      }
+    | tOp=<SUBTRACAO> expr=ExprUn()
+      {
+        ASTNode node = new ASTNode("Operação Unária: " + tOp.image);
+        node.addChild(expr);
+        return node;
+      }
+    | expr=Prim()
+      {
+        return expr;
+      }
+  )
 }
 
 /* Valor primário de uma expressão. */
-void Prim() :
-{}
+ASTNode Prim() :
 {
-    <NUMERO_FLOAT>
-  | <NUMERO_INT>
-  | <TRUE>
-  | <FALSE>
-  | <STR>
-  | <ID> PrimIdSuffix()
-  | <ABRE_PAR> Expr() <FECHA_PAR>
+  Token t = null;
+  ASTNode suffix = null;
+  ASTNode expr = null;
+}
+{
+  (
+      t=<NUMERO_FLOAT> { return new ASTNode("Literal Real: " + t.image); }
+    | t=<NUMERO_INT>   { return new ASTNode("Literal Inteiro: " + t.image); }
+    | t=<TRUE>         { return new ASTNode("Literal Booleano: " + t.image); }
+    | t=<FALSE>        { return new ASTNode("Literal Booleano: " + t.image); }
+    | t=<STR>          { return new ASTNode("Literal Rótulo: " + t.image); }
+    | (
+        t=<ID>
+        suffix=PrimIdSuffix(t.image)
+        { return suffix; }
+      )
+    | (
+        <ABRE_PAR>
+        expr=Expr()
+        <FECHA_PAR>
+        {
+          ASTNode node = new ASTNode("Expressão Agrupada");
+          node.addChild(expr);
+          return node;
+        }
+      )
+  )
 }
 
 /* Depois de um ID dentro de expressão, decide se é variável ou chamada. */
-void PrimIdSuffix() :
-{}
+ASTNode PrimIdSuffix(String idName) :
 {
-  ( <ABRE_PAR> ArgsOpt() <FECHA_PAR> )?
+  ASTNode args = null;
+  boolean isCall = false;
+}
+{
+  (
+    <ABRE_PAR>
+    args=ArgsOpt()
+    <FECHA_PAR>
+    { isCall = true; }
+  )?
+  {
+    if (isCall) {
+      ASTNode node = new ASTNode("Chamada de Função: " + idName);
+      node.addChild(args);
+      return node;
+    } else {
+      return new ASTNode("Referência de Variável: " + idName);
+    }
+  }
 }
