@@ -776,9 +776,6 @@ static private int jjStartNfaWithStates_0(int pos, int kind, int state)
    return jjMoveNfa_0(state, pos + 1);
 }
 static final long[] jjbitVec0 = {
-   0xfffffffffffffffeL, 0xffffffffffffffffL, 0xffffffffffffffffL, 0xffffffffffffffffL
-};
-static final long[] jjbitVec2 = {
    0x0L, 0x0L, 0xffffffffffffffffL, 0xffffffffffffffffL
 };
 static private int jjMoveNfa_0(int startState, int curPos)
@@ -950,9 +947,6 @@ static private int jjMoveNfa_0(int startState, int curPos)
       }
       else
       {
-         int hiByte = (curChar >> 8);
-         int i1 = hiByte >> 6;
-         long l1 = 1L << (hiByte & 077);
          int i2 = (curChar & 0xff) >> 6;
          long l2 = 1L << (curChar & 077);
          do
@@ -960,11 +954,11 @@ static private int jjMoveNfa_0(int startState, int curPos)
             switch(jjstateSet[--i])
             {
                case 1:
-                  if (jjCanMove_0(hiByte, i1, i2, l1, l2))
+                  if ((jjbitVec0[i2] & l2) != 0L)
                      { jjAddStates(8, 10); }
                   break;
                case 9:
-                  if (!jjCanMove_0(hiByte, i1, i2, l1, l2))
+                  if ((jjbitVec0[i2] & l2) == 0L)
                      break;
                   if (kind > 5)
                      kind = 5;
@@ -972,10 +966,10 @@ static private int jjMoveNfa_0(int startState, int curPos)
                   break;
                case 11:
                case 13:
-                  if (jjCanMove_0(hiByte, i1, i2, l1, l2))
+                  if ((jjbitVec0[i2] & l2) != 0L)
                      { jjCheckNAddStates(0, 2); }
                   break;
-               default : if (i1 == 0 || l1 == 0 || i2 == 0 ||  l2 == 0) break; else break;
+               default : break;
             }
          } while(i != startsAt);
       }
@@ -1037,18 +1031,6 @@ static protected Token jjFillToken()
 static final int[] jjnextStates = {
    11, 12, 15, 17, 18, 20, 8, 10, 1, 2, 4, 
 };
-private static final boolean jjCanMove_0(int hiByte, int i1, int i2, long l1, long l2)
-{
-   switch(hiByte)
-   {
-      case 0:
-         return ((jjbitVec2[i2] & l2) != 0L);
-      default :
-         if ((jjbitVec0[i1] & l1) != 0L)
-            return true;
-         return false;
-   }
-}
 
 static int curLexState = 0;
 static int defaultLexState = 0;

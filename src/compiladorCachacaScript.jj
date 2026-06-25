@@ -1,20 +1,55 @@
-/**
- * Parser JavaCC para a linguagem CachaçaScript.
- */
-options
-{
-  STATIC = true;
-  LOOKAHEAD = 1;
-  UNICODE_INPUT = true;
-}
-
 PARSER_BEGIN(compiladorCachacaScript)
 
 public class compiladorCachacaScript
 {
+  public static java.util.List<String> listaErros = new java.util.ArrayList<String>();
+
   public static void main(String args[])
   {
     CachacaScriptIDE.main(args);
+  }
+
+  public static void recuperarErroComando(ParseException e, int syncKind1, int syncKind2) {
+      Token tErr = e.currentToken != null ? e.currentToken.next : null;
+      String msg = "Erro sintático";
+      if (tErr != null) {
+          msg += " na linha " + tErr.beginLine + ", coluna " + tErr.beginColumn + ": token problemático '" + tErr.image + "'";
+      }
+      msg += ". Detalhes: " + e.getMessage();
+      listaErros.add(msg);
+
+      Token t;
+      while (true) {
+          t = getToken(1);
+          if (t.kind == syncKind1) {
+              getNextToken(); // consome o ponto-e-vírgula de sincronização
+              break;
+          }
+          if (t.kind == syncKind2 || t.kind == FIM_PROGRAMA || t.kind == EOF) {
+              // não consome o delimitador de fechar para não quebrar o bloco pai
+              break;
+          }
+          getNextToken(); // consome o token inválido
+      }
+  }
+
+  public static void recuperarErroFuncao(ParseException e, int syncKind1, int syncKind2) {
+      Token tErr = e.currentToken != null ? e.currentToken.next : null;
+      String msg = "Erro sintático na declaração da função";
+      if (tErr != null) {
+          msg += " na linha " + tErr.beginLine + ", coluna " + tErr.beginColumn + ": token problemático '" + tErr.image + "'";
+      }
+      msg += ". Detalhes: " + e.getMessage();
+      listaErros.add(msg);
+
+      Token t;
+      while (true) {
+          t = getToken(1);
+          if (t.kind == syncKind1 || t.kind == syncKind2 || t.kind == EOF) {
+              break;
+          }
+          getNextToken(); // consome token inválido dentro da declaração da função
+      }
   }
 }
 
@@ -200,19 +235,24 @@ ASTNode Comando() :
   ASTNode c = null;
 }
 {
-  (
-      c=Decl() <PONTO_VIRG>
-    | c=StmtFromId() <PONTO_VIRG>
-    | c=Io() <PONTO_VIRG>
-    | c=If()
-    | c=While()
-    | c=RepeatUntil()
-    | c=For()
-    | c=Ret() <PONTO_VIRG>
-    | c=Bloco()
-    | <PONTO_VIRG> { c = new ASTNode("Comando Vazio (viraDose)"); }
-  )
-  { return c; }
+  try {
+    (
+        c=Decl() <PONTO_VIRG>
+      | c=StmtFromId() <PONTO_VIRG>
+      | c=Io() <PONTO_VIRG>
+      | c=If()
+      | c=While()
+      | c=RepeatUntil()
+      | c=For()
+      | c=Ret() <PONTO_VIRG>
+      | c=Bloco()
+      | <PONTO_VIRG> { c = new ASTNode("Comando Vazio (viraDose)"); }
+    )
+    { return c; }
+  } catch (ParseException e) {
+    recuperarErroComando(e, PONTO_VIRG, DELIMITADOR_DIR);
+    return new ASTNode("Comando Inválido (Erro Sintático)");
+  }
 }
 
 /* =========================================================
@@ -561,13 +601,18 @@ ASTNode DeclFun() :
   ASTNode body;
 }
 {
-  <FUNCAO> retType=RetTipo() tName=<ID> <ABRE_PAR> params=ParamsOpt() <FECHA_PAR> body=Bloco()
-  {
-    ASTNode node = new ASTNode("Função (alambique): " + tName.image);
-    node.addChild(retType);
-    node.addChild(params);
-    node.addChild(body);
-    return node;
+  try {
+    <FUNCAO> retType=RetTipo() tName=<ID> <ABRE_PAR> params=ParamsOpt() <FECHA_PAR> body=Bloco()
+    {
+      ASTNode node = new ASTNode("Função (alambique): " + tName.image);
+      node.addChild(retType);
+      node.addChild(params);
+      node.addChild(body);
+      return node;
+    }
+  } catch (ParseException e) {
+    recuperarErroFuncao(e, FUNCAO, DELIMITADOR_ESQ);
+    return new ASTNode("Função Inválida (Erro Sintático)");
   }
 }
 

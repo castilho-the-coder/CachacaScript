@@ -111,6 +111,9 @@ public class CachacaScriptIDE {
         String conteudo = txtCodigo.getText();
         StringReader sr = new StringReader(conteudo);
 
+        // Limpa a lista de erros antes de começar a compilação
+        compiladorCachacaScript.listaErros.clear();
+
         if (parser == null) {
             parser = new compiladorCachacaScript(sr);
         } else {
@@ -123,9 +126,17 @@ public class CachacaScriptIDE {
             // Execute parser and get AST root node
             ASTNode astRoot = compiladorCachacaScript.Programa();
             
-            txtSaida.append("Sucesso: Programa sintaticamente correto.\n");
+            // Verifica se houve erros recuperados
+            if (compiladorCachacaScript.listaErros.isEmpty()) {
+                txtSaida.append("Sucesso: Programa sintaticamente correto.\n");
+            } else {
+                txtSaida.append("🍺 Ih rapaz... Encontrei " + compiladorCachacaScript.listaErros.size() + " erro(s) sintático(s):\n");
+                for (String err : compiladorCachacaScript.listaErros) {
+                    txtSaida.append(" - " + err + "\n");
+                }
+            }
             
-            // Populate Swing Tree with the AST
+            // Populate Swing Tree with the AST (even if it has error nodes)
             if (astRoot != null) {
                 treeAST.setModel(new DefaultTreeModel(astRoot.toSwingTree()));
                 // Expand JTree nodes automatically
@@ -137,8 +148,9 @@ public class CachacaScriptIDE {
             }
         } 
         catch (ParseException e) {
-            treeAST.setModel(new DefaultTreeModel(new DefaultMutableTreeNode("Sem Árvore (Erro Sintático)")));
-            txtSaida.append("🍺 Opa! Parece que a cachaça subiu...\n");
+            // Isso acontece se um erro catastrófico não recuperado pelo modo pânico ocorrer
+            treeAST.setModel(new DefaultTreeModel(new DefaultMutableTreeNode("Sem Árvore (Erro Sintático Crítico)")));
+            txtSaida.append("🍺 Opa! Um erro crítico impediu a recuperação do parser...\n");
             Token t = e.currentToken != null ? e.currentToken.next : null;
             if (t != null) {
                 txtSaida.append("Erro sintático na linha " + t.beginLine + ", coluna " + t.beginColumn + "\n");
