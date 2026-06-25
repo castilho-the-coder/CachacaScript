@@ -3,6 +3,7 @@ PARSER_BEGIN(compiladorCachacaScript)
 public class compiladorCachacaScript
 {
   public static java.util.List<String> listaErros = new java.util.ArrayList<String>();
+  public static java.util.List<Integer> linhasComErros = new java.util.ArrayList<Integer>();
 
   public static void main(String args[])
   {
@@ -14,6 +15,7 @@ public class compiladorCachacaScript
       String msg = "Erro sintático";
       if (tErr != null) {
           msg += " na linha " + tErr.beginLine + ", coluna " + tErr.beginColumn + ": token problemático '" + tErr.image + "'";
+          linhasComErros.add(tErr.beginLine);
       }
       msg += ". Detalhes: " + e.getMessage();
       listaErros.add(msg);
@@ -38,6 +40,7 @@ public class compiladorCachacaScript
       String msg = "Erro sintático na declaração da função";
       if (tErr != null) {
           msg += " na linha " + tErr.beginLine + ", coluna " + tErr.beginColumn + ": token problemático '" + tErr.image + "'";
+          linhasComErros.add(tErr.beginLine);
       }
       msg += ". Detalhes: " + e.getMessage();
       listaErros.add(msg);

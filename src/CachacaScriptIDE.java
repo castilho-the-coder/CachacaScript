@@ -106,13 +106,29 @@ public class CachacaScriptIDE {
         frame.setVisible(true);
     }
 
+    private void destacarLinhaErro(int linha) {
+        try {
+            int startOffset = txtCodigo.getLineStartOffset(linha - 1);
+            int endOffset = txtCodigo.getLineEndOffset(linha - 1);
+            javax.swing.text.Highlighter.HighlightPainter painter = 
+                new javax.swing.text.DefaultHighlighter.DefaultHighlightPainter(new Color(255, 200, 200));
+            txtCodigo.getHighlighter().addHighlight(startOffset, endOffset, painter);
+        } catch (javax.swing.text.BadLocationException e) {
+            // ignore
+        }
+    }
+
     private void executarCompilacao() {
         txtSaida.setText("");
+        // Remove todos os destaques antigos
+        txtCodigo.getHighlighter().removeAllHighlights();
+
         String conteudo = txtCodigo.getText();
         StringReader sr = new StringReader(conteudo);
 
         // Limpa a lista de erros antes de começar a compilação
         compiladorCachacaScript.listaErros.clear();
+        compiladorCachacaScript.linhasComErros.clear();
 
         if (parser == null) {
             parser = new compiladorCachacaScript(sr);
@@ -134,6 +150,10 @@ public class CachacaScriptIDE {
                 for (String err : compiladorCachacaScript.listaErros) {
                     txtSaida.append(" - " + err + "\n");
                 }
+                // Destaca todas as linhas com erros recuperados
+                for (int line : compiladorCachacaScript.linhasComErros) {
+                    destacarLinhaErro(line);
+                }
             }
             
             // Populate Swing Tree with the AST (even if it has error nodes)
@@ -153,6 +173,7 @@ public class CachacaScriptIDE {
             txtSaida.append("🍺 Opa! Um erro crítico impediu a recuperação do parser...\n");
             Token t = e.currentToken != null ? e.currentToken.next : null;
             if (t != null) {
+                destacarLinhaErro(t.beginLine);
                 txtSaida.append("Erro sintático na linha " + t.beginLine + ", coluna " + t.beginColumn + "\n");
                 txtSaida.append("Token problemático: " + t.image + "\n");
             }
@@ -163,6 +184,16 @@ public class CachacaScriptIDE {
             txtSaida.append("🍺 Ih rapaz... serviram um caractere estranho no balcão.\n");
             txtSaida.append("Erro léxico: encontrei algo que não pertence à linguagem CachaçaScript.\n");
             txtSaida.append("Detalhes: " + e.getMessage() + "\n");
+
+            // Tenta extrair a linha do erro léxico usando regex
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile("line (\\d+)");
+            java.util.regex.Matcher m = p.matcher(e.getMessage());
+            if (m.find()) {
+                try {
+                    int line = Integer.parseInt(m.group(1));
+                    destacarLinhaErro(line);
+                } catch (Exception ignored) {}
+            }
         }
     }
 }
