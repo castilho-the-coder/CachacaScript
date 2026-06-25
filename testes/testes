@@ -1,0 +1,89 @@
+abreAButelada
+abreBarril
+fechaBarril
+fechaAButelada
+
+
+
+teste simples
+//-----------------------------------------------
+
+abreAButelada
+abreBarril
+doseInteira x viraDose
+x engarrafar 10 viraDose
+
+seDerBoa abreCopo x > 5 fechaCopo
+abreBarril
+serveNoCopo abreCopo x fechaCopo viraDose
+fechaBarril
+
+fechaBarril
+fechaAButelada
+
+
+
+declaração
+atribuição
+expressão
+if
+
+//------------------------------------------------------------
+
+abreAButelada
+abreBarril
+x engarrafar viraDose
+fechaBarril
+fechaAButelada
+
+forçar erros
+
+//-------------------------------------------------------
+
+abreAButelada
+abreBarril
+
+rotulo mensagem viraDose
+mensagem engarrafar "Ola Mundo" viraDose
+
+serveNoCopo abreCopo mensagem fechaCopo viraDose
+
+fechaBarril
+fechaAButelada
+
+Ola mundo cachaceiro
+
+//-----------------------------------------------------------
+
+abreAButelada
+abreBarril
+
+doseInteira x viraDose
+x engarrafar viraDose   // ERRO: faltou valor na expressão
+
+fechaBarril
+fechaAButelada
+
+codigo invalido
+
+//-----------------------------------------------------------
+
+alambique doseInteira soma abreCopo doseInteira a maisUmaDose doseInteira b fechaCopo
+abreBarril
+devolveDose a + b viraDose
+fechaBarril
+
+abreBarril
+
+doseInteira resultado viraDose
+resultado engarrafar soma abreCopo 5 maisUmaDose 3 fechaCopo viraDose
+
+serveNoCopo abreCopo resultado fechaCopo viraDose
+
+fechaBarril
+fechaAButelada
+
+declaração de função
+
+
+

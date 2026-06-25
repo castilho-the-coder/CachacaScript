@@ -1,0 +1,171 @@
+// ================================================================
+// Gramática BNF - CachaçaScript
+// Versão corrigida para reduzir ambiguidades em regras iniciadas por <ID>
+// Comentários adicionados para explicar a função de cada token/regra.
+// ================================================================
+
+<PROGRAMA>           ::= <INICIO_PROGRAMA> <DECL_FUN_LIST_OPT> <BLOCO> <FIM_PROGRAMA>  // Estrutura principal do programa: início, funções opcionais, bloco principal e fim.
+
+<INICIO_PROGRAMA>    ::= "abreAButelada"        // Palavra reservada que marca o início do programa.
+<FIM_PROGRAMA>       ::= "fechaAButelada"       // Palavra reservada que marca o fim do programa.
+
+<DELIMITADOR_ESQ>    ::= "abreBarril"           // Delimitador de abertura de bloco, equivalente a "{".
+<DELIMITADOR_DIR>    ::= "fechaBarril"          // Delimitador de fechamento de bloco, equivalente a "}".
+
+<ABRE_PAR>           ::= "abreCopo"             // Abre parênteses, equivalente a "(".
+<FECHA_PAR>          ::= "fechaCopo"            // Fecha parênteses, equivalente a ")".
+
+<PONTO_VIRG>         ::= "viraDose"             // Finalizador de comando, equivalente a ";".
+<ATRIBUICAO>         ::= "engarrafar"           // Operador de atribuição, equivalente a "=".
+<VIRGULA>            ::= "maisUmaDose"          // Separador de itens, equivalente a ",".
+
+<IMPRIME>            ::= "serveNoCopo"          // Comando de saída/impressão.
+<ENTRADA>            ::= "pedeNoBalcao"         // Comando de entrada/leitura.
+
+<SE>                 ::= "seDerBoa"             // Comando condicional if.
+<SENAO>              ::= "seDerRuim"            // Comando condicional else.
+<MARCA_SE>           ::= "mestreAlambique"      // Marcador opcional antes do if, usado como palavra extra da linguagem.
+
+<ENQUANTO>           ::= "enquantoTemCana"      // Laço de repetição while.
+<FAZ>                ::= "tomaUma"              // Início do laço repeat/do.
+<ATE>                ::= "ateFicarTonto"        // Condição final do laço repeat-until.
+
+<PARA>               ::= "rodada"               // Laço de repetição for.
+
+<FUNCAO>             ::= "alambique"            // Palavra reservada para declaração de função.
+<RETORNO>            ::= "devolveDose"          // Comando de retorno de função.
+<VOID>               ::= "semDose"              // Tipo de retorno vazio, equivalente a void.
+
+<TIPO_INT>           ::= "doseInteira"          // Tipo inteiro.
+<TIPO_FLOAT>         ::= "doseQuebrada"         // Tipo decimal/ponto flutuante.
+<TIPO_BOOL>          ::= "taNoGrau"             // Tipo booleano.
+<TIPO_STRING>        ::= "rotulo"               // Tipo texto/string.
+<TIPO_VAR>           ::= "garrafa"              // Tipo genérico/variável inferida.
+
+<TRUE>               ::= "simPatrao"            // Literal booleano verdadeiro.
+<FALSE>              ::= "nemAPau"              // Literal booleano falso.
+
+<SOMA>               ::= "+"                    // Operador de soma.
+<SUBTRACAO>          ::= "-"                    // Operador de subtração ou negação aritmética.
+<MULTIPLICACAO>      ::= "*"                    // Operador de multiplicação.
+<DIVISAO>            ::= "/"                    // Operador de divisão.
+
+<MAIOR>              ::= ">"                    // Operador relacional maior que.
+<MENOR>              ::= "<"                    // Operador relacional menor que.
+<MENOR_IGUAL>        ::= "<="                   // Operador relacional menor ou igual.
+<MAIOR_IGUAL>        ::= ">="                   // Operador relacional maior ou igual.
+<IGUALDADE>          ::= "=="                   // Operador relacional de igualdade.
+<DIFERENTE>          ::= "!="                   // Operador relacional de diferença.
+<E_LOGICO>           ::= "&&"                   // Operador lógico E.
+<OU_LOGICO>          ::= "||"                   // Operador lógico OU.
+<NEGACAO>            ::= "!"                    // Operador lógico de negação.
+
+<DIGITO>             ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"  // Dígitos aceitos na linguagem.
+<NUMERO_INT>         ::= <DIGITO>+               // Número inteiro formado por um ou mais dígitos.
+<NUMERO_FLOAT>       ::= <DIGITO>+ "." <DIGITO>+ // Número decimal com parte inteira e fracionária.
+<DELIM_STR>          ::= "\""                  // Delimitador de string, equivalente a aspas duplas.
+<ID>                 ::= ( "a"–"z" | "A"–"Z" | "_" ) ( "a"–"z" | "A"–"Z" | "0"–"9" | "_" )*  // Identificador de variáveis e funções.
+<STR>                ::= <DELIM_STR> ( ~["\"", "\\"] | "\\" . )* <DELIM_STR>  // Literal string com suporte a caracteres escapados.
+
+<DECL_FUN_LIST_OPT>  ::= ε | <DECL_FUN> <DECL_FUN_LIST_OPT>  // Lista opcional de declarações de função antes do bloco principal.
+
+// ================================================================
+// Expressões primárias
+// Correção de ambiguidade: antes existiam duas alternativas começando com <ID>:
+// <ID> e <ID> <ABRE_PAR> ... <FECHA_PAR>.
+// Agora o parser lê primeiro o <ID> e depois decide pelo sufixo se é variável ou chamada.
+// ================================================================
+
+<PRIM>               ::= <NUMERO_INT>                                      // Literal inteiro.
+                       | <NUMERO_FLOAT>                                    // Literal decimal.
+                       | <TRUE>                                            // Literal booleano verdadeiro.
+                       | <FALSE>                                           // Literal booleano falso.
+                       | <STR>                                             // Literal string.
+                       | <ID> <PRIM_ID_SUFFIX>                             // Uso de variável ou chamada de função.
+                       | <ABRE_PAR> <EXPR> <FECHA_PAR>                     // Expressão agrupada por parênteses.
+
+<PRIM_ID_SUFFIX>     ::= ε                                                 // Quando após o ID não vem parênteses, o ID é tratado como variável.
+                       | <ABRE_PAR> <ARGS_OPT> <FECHA_PAR>                 // Quando após o ID vem parênteses, o ID é tratado como chamada de função.
+
+<BLOCO>              ::= <DELIMITADOR_ESQ> <LISTA_COMANDOS_OPT> <DELIMITADOR_DIR>  // Bloco de comandos delimitado por abreBarril e fechaBarril.
+<LISTA_COMANDOS_OPT> ::= ε | <COMANDO> <LISTA_COMANDOS_OPT>                // Lista opcional de comandos dentro de um bloco.
+
+// ================================================================
+// Comandos iniciados por ID
+// Correção de ambiguidade: comandos com ID podem ser atribuição ou chamada.
+// A regra foi fatorada para evitar duas alternativas começando diretamente com <ID>.
+// ================================================================
+
+<STMT_FROM_ID>       ::= <ID> <STMT_ID_SUFFIX>                             // Comando iniciado por ID: atribuição ou chamada de função.
+<STMT_ID_SUFFIX>     ::= <ATRIBUICAO> <EXPR>                                // Atribuição: id engarrafar expressão.
+                       | <ABRE_PAR> <ARGS_OPT> <FECHA_PAR>                 // Chamada de função: id abreCopo argumentos fechaCopo.
+
+<COMANDO>            ::= <DECL> <PONTO_VIRG>                               // Declaração de variável finalizada por viraDose.
+                       | <STMT_FROM_ID> <PONTO_VIRG>                       // Atribuição ou chamada de função finalizada por viraDose.
+                       | <IO> <PONTO_VIRG>                                 // Entrada ou saída finalizada por viraDose.
+                       | <IF>                                              // Comando condicional.
+                       | <WHILE>                                           // Laço while.
+                       | <REPEAT_UNTIL>                                    // Laço repeat-until.
+                       | <FOR>                                             // Laço for.
+                       | <RET> <PONTO_VIRG>                                // Retorno de função finalizado por viraDose.
+                       | <BLOCO>                                           // Bloco aninhado.
+                       | <PONTO_VIRG>                                      // Comando vazio.
+
+<DECL>               ::= ( <TIPO> | <TIPO_VAR> ) <LISTA_DECL>              // Declaração de uma ou mais variáveis.
+<LISTA_DECL>         ::= <ITEM_DECL> | <ITEM_DECL> <VIRGULA> <LISTA_DECL>   // Lista de variáveis declaradas, separadas por maisUmaDose.
+<ITEM_DECL>          ::= <ID> | <ID> <ATRIBUICAO> <EXPR>                   // Item declarado, podendo ou não receber valor inicial.
+<TIPO>               ::= <TIPO_INT> | <TIPO_FLOAT> | <TIPO_BOOL> | <TIPO_STRING>  // Tipos primitivos aceitos pela linguagem.
+
+<ARGS_OPT>           ::= ε | <EXPR> ( <VIRGULA> <EXPR> )*                 // Lista opcional de argumentos em chamadas de função.
+
+<IO>                 ::= <IMPRIME> <ABRE_PAR> <PRINT_LIST> <FECHA_PAR>     // Comando de impressão com uma ou mais expressões.
+                       | <ENTRADA> <ABRE_PAR> <READ_LIST> <FECHA_PAR>      // Comando de leitura com um ou mais identificadores.
+<PRINT_LIST>         ::= <EXPR> ( <VIRGULA> <EXPR> )*                     // Lista de expressões para impressão.
+<READ_LIST>          ::= <ID> ( <VIRGULA> <ID> )*                          // Lista de variáveis que receberão entrada.
+
+<IF>                 ::= ( <MARCA_SE> )? <SE> <ABRE_PAR> <EXPR> <FECHA_PAR> <BLOCO> <ELSE_OPT>  // Condicional if com else opcional.
+<ELSE_OPT>           ::= ε | <SENAO> <BLOCO>                               // Bloco else opcional.
+
+<WHILE>              ::= <ENQUANTO> <ABRE_PAR> <EXPR> <FECHA_PAR> <BLOCO>  // Laço while: repete enquanto a expressão for verdadeira.
+<REPEAT_UNTIL>       ::= <FAZ> <BLOCO> <ATE> <ABRE_PAR> <EXPR> <FECHA_PAR> <PONTO_VIRG>  // Laço que executa primeiro e testa a condição no final.
+
+<FOR>                ::= <PARA> <ABRE_PAR>                                 // Início do laço for.
+                           <FOR_INIT_OPT> <PONTO_VIRG>                     // Inicialização opcional do for.
+                           <EXPR_OPT>     <PONTO_VIRG>                     // Condição opcional do for.
+                           <FOR_POST_OPT>                                  // Pós-execução opcional do for.
+                         <FECHA_PAR> <BLOCO>                               // Fim do cabeçalho e bloco do for.
+
+<FOR_INIT_OPT>       ::= ε                                                 // For sem inicialização.
+                       | ( <TIPO> | <TIPO_VAR> ) <LISTA_DECL>              // Inicialização com declaração de variável.
+                       | <ID_STMT_CAB>                                     // Inicialização com atribuição ou chamada de função.
+
+<EXPR_OPT>           ::= ε | <EXPR>                                        // Expressão opcional, usada principalmente como condição do for.
+
+<FOR_POST_OPT>       ::= ε                                                 // For sem pós-execução.
+                       | <ID_STMT_CAB>                                     // Pós-execução com atribuição ou chamada de função.
+
+<ID_STMT_CAB>        ::= <ID> <STMT_ID_SUFFIX>                             // Reaproveita a lógica de atribuição ou chamada em cabeçalhos de for.
+
+<DECL_FUN>           ::= <FUNCAO> <RET_TIPO> <ID> <ABRE_PAR> <PARAMS_OPT> <FECHA_PAR> <BLOCO>  // Declaração de função com tipo de retorno, nome, parâmetros e bloco.
+<RET_TIPO>           ::= <TIPO> | <VOID>                                   // Tipo de retorno da função: tipo primitivo ou semDose.
+<PARAMS_OPT>         ::= ε | <PARAMS>                                      // Lista opcional de parâmetros da função.
+<PARAMS>             ::= <PARAM> | <PARAM> <VIRGULA> <PARAMS>              // Lista de parâmetros separados por maisUmaDose.
+<PARAM>              ::= <TIPO> <ID>                                       // Parâmetro formado por tipo e identificador.
+<RET>                ::= <RETORNO> | <RETORNO> <EXPR>                      // Retorno sem valor ou com uma expressão.
+
+// ================================================================
+// Expressões com precedência de operadores
+// A ordem abaixo define a prioridade: OU lógico é o mais fraco;
+// multiplicação/divisão e operadores unários são mais fortes.
+// ================================================================
+
+<EXPR>               ::= <EXPR_OR>                                         // Ponto de entrada para qualquer expressão.
+<EXPR_OR>            ::= <EXPR_AND> ( <OU_LOGICO> <EXPR_AND> )*            // Expressões com operador OU lógico.
+<EXPR_AND>           ::= <EXPR_EQ>  ( <E_LOGICO>  <EXPR_EQ> )*             // Expressões com operador E lógico.
+<EXPR_EQ>            ::= <EXPR_REL> ( ( <IGUALDADE> | <DIFERENTE> ) <EXPR_REL> )*  // Comparações de igualdade e diferença.
+<EXPR_REL>           ::= <EXPR_ADD> ( ( <MENOR> | <MAIOR> | <MENOR_IGUAL> | <MAIOR_IGUAL> ) <EXPR_ADD> )*  // Comparações relacionais.
+<EXPR_ADD>           ::= <EXPR_MUL> ( ( <SOMA> | <SUBTRACAO> ) <EXPR_MUL> )*  // Soma e subtração.
+<EXPR_MUL>           ::= <EXPR_UN>  ( ( <MULTIPLICACAO> | <DIVISAO> ) <EXPR_UN> )*  // Multiplicação e divisão.
+<EXPR_UN>            ::= <NEGACAO> <EXPR_UN>                               // Negação lógica unária.
+                       | <SUBTRACAO> <EXPR_UN>                             // Negativo aritmético unário.
+                       | <PRIM>                                            // Expressão primária.

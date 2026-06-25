@@ -1,0 +1,524 @@
+/**
+ * Parser JavaCC para a linguagem CachaçaScript.
+ */
+options
+{
+  STATIC = true;
+  LOOKAHEAD = 1;
+  UNICODE_INPUT = true;
+}
+
+PARSER_BEGIN(compiladorCachacaScript)
+
+
+public class compiladorCachacaScript
+{
+  public static void main(String args[]) throws java.io.FileNotFoundException
+  {
+    java.io.FileInputStream fis = new java.io.FileInputStream("src/teste.cs");
+	compiladorCachacaScript parser = new compiladorCachacaScript(fis);
+
+    try
+    {
+      System.out.println("Lendo programa CachaçaScript do arquivo teste.cs...");
+      compiladorCachacaScript.Programa();
+      System.out.println("Programa sintaticamente correto.");
+    }
+    catch (ParseException e)
+	{
+	    System.out.println("🍺 Opa! Parece que a cachaça subiu...");
+	
+	    Token t = e.currentToken != null ? e.currentToken.next : null;
+	
+	    if (t != null) {
+	        System.out.println(
+	            "Erro sintático na linha " + t.beginLine +
+	            ", coluna " + t.beginColumn
+	        );
+	
+	        System.out.println("Token problemático: " + t.image);
+	    }
+	
+	    System.out.println("Detalhes: " + e.getMessage());
+	}
+    catch (TokenMgrError e)
+	{
+	    System.out.println("🍺 Ih rapaz... serviram um caractere estranho no balcão.");
+	    System.out.println("Erro léxico: encontrei algo que não pertence à linguagem CachaçaScript.");
+	
+	    String msg = e.getMessage();
+	
+	    java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+	        "Lexical error at line (\\d+), column (\\d+)"
+	    );
+	
+	    java.util.regex.Matcher matcher = pattern.matcher(msg);
+	
+	    if (matcher.find()) {
+	        System.out.println(
+	            "📍 Linha: " + matcher.group(1) +
+	            ", coluna: " + matcher.group(2)
+	        );
+	    }
+	
+	    System.out.println("Detalhes: " + msg);
+	}
+  }
+}
+
+PARSER_END(compiladorCachacaScript)
+
+/* =========================================================
+ * ESPAÇOS E COMENTÁRIOS
+ * ========================================================= */
+SKIP :
+{
+    " "
+  | "\r"
+  | "\t"
+  | "\n"
+}
+
+SKIP :
+{
+    < COMENTARIO_LINHA : "//" (~["\n", "\r"])* >
+  | < COMENTARIO_BLOCO : "/*" ( ~["*"] | "*" ~["/"] )* "*/" >
+}
+
+/* =========================================================
+ * PALAVRAS RESERVADAS
+ * ========================================================= */
+TOKEN :
+{
+    < INICIO_PROGRAMA : "abreAButelada" >
+  | < FIM_PROGRAMA    : "fechaAButelada" >
+
+  | < DELIMITADOR_ESQ : "abreBarril" >
+  | < DELIMITADOR_DIR : "fechaBarril" >
+
+  | < ABRE_PAR        : "abreCopo" >
+  | < FECHA_PAR       : "fechaCopo" >
+
+  | < PONTO_VIRG      : "viraDose" >
+  | < ATRIBUICAO      : "engarrafar" >
+  | < VIRGULA         : "maisUmaDose" >
+
+  | < IMPRIME         : "serveNoCopo" >
+  | < ENTRADA         : "pedeNoBalcao" >
+
+  | < SE              : "seDerBoa" >
+  | < SENAO           : "seDerRuim" >
+  | < MARCA_SE        : "mestreAlambique" >
+
+  | < ENQUANTO        : "enquantoTemCana" >
+  | < FAZ             : "tomaUma" >
+  | < ATE             : "ateFicarTonto" >
+
+  | < PARA            : "rodada" >
+
+  | < FUNCAO          : "alambique" >
+  | < RETORNO         : "devolveDose" >
+  | < VOID            : "semDose" >
+
+  | < TIPO_INT        : "doseInteira" >
+  | < TIPO_FLOAT      : "doseQuebrada" >
+  | < TIPO_BOOL       : "taNoGrau" >
+  | < TIPO_STRING     : "rotulo" >
+  | < TIPO_VAR        : "garrafa" >
+
+  | < TRUE            : "simPatrao" >
+  | < FALSE           : "nemAPau" >
+}
+
+/* =========================================================
+ * OPERADORES
+ * Tokens maiores precisam vir antes dos menores.
+ * Exemplo: <= antes de <, >= antes de >.
+ * ========================================================= */
+TOKEN :
+{
+    < MENOR_IGUAL     : "<=" >
+  | < MAIOR_IGUAL     : ">=" >
+  | < IGUALDADE       : "==" >
+  | < DIFERENTE       : "!=" >
+  | < E_LOGICO        : "&&" >
+  | < OU_LOGICO       : "||" >
+
+  | < SOMA            : "+" >
+  | < SUBTRACAO       : "-" >
+  | < MULTIPLICACAO   : "*" >
+  | < DIVISAO         : "/" >
+
+  | < MAIOR           : ">" >
+  | < MENOR           : "<" >
+  | < NEGACAO         : "!" >
+}
+
+/* =========================================================
+ * LITERAIS E IDENTIFICADORES
+ * NUMERO_FLOAT vem antes de NUMERO_INT para reconhecer 10.5
+ * como float e não como int seguido de ponto.
+ * ========================================================= */
+TOKEN :
+{
+    < NUMERO_FLOAT : (<DIGITO>)+ "." (<DIGITO>)+ >
+  | < NUMERO_INT   : (<DIGITO>)+ >
+  | < STR          : "\"" ( ~["\"", "\\", "\n", "\r"] | "\\" ["\"", "\\", "n", "t", "r"] )* "\"" >
+  | < ID           : ["a"-"z", "A"-"Z", "_"] (["a"-"z", "A"-"Z", "0"-"9", "_"])* >
+  | < #DIGITO      : ["0"-"9"] >
+}
+
+/* =========================================================
+ * PROGRAMA
+ * Um programa começa com abreAButelada, pode ter funções,
+ * possui um bloco principal e termina com fechaAButelada.
+ * ========================================================= */
+void Programa() :
+{}
+{
+  <INICIO_PROGRAMA>
+  DeclFunListOpt()
+  Bloco()
+  <FIM_PROGRAMA>
+  <EOF>
+}
+
+/* Lista opcional de declarações de função antes do bloco principal. */
+void DeclFunListOpt() :
+{}
+{
+  ( DeclFun() )*
+}
+
+/* =========================================================
+ * BLOCO E LISTA DE COMANDOS
+ * ========================================================= */
+
+/* Bloco delimitado por abreBarril e fechaBarril. */
+void Bloco() :
+{}
+{
+  <DELIMITADOR_ESQ>
+  ListaComandosOpt()
+  <DELIMITADOR_DIR>
+}
+
+/* Zero ou mais comandos dentro de um bloco. */
+void ListaComandosOpt() :
+{}
+{
+  ( Comando() )*
+}
+
+/* Um comando da linguagem. */
+void Comando() :
+{}
+{
+    Decl() <PONTO_VIRG>          // declaração de variável
+  | StmtFromId() <PONTO_VIRG>    // atribuição ou chamada de função
+  | Io() <PONTO_VIRG>            // entrada ou saída
+  | If()                         // condicional
+  | While()                      // laço enquanto
+  | RepeatUntil()                // laço faça-até
+  | For()                        // laço for
+  | Ret() <PONTO_VIRG>           // retorno de função
+  | Bloco()                      // bloco aninhado
+  | <PONTO_VIRG>                 // comando vazio
+}
+
+/* =========================================================
+ * DECLARAÇÕES
+ * ========================================================= */
+
+/* Declara variável tipada ou variável genérica garrafa. */
+void Decl() :
+{}
+{
+  ( Tipo() | <TIPO_VAR> ) ListaDecl()
+}
+
+/* Lista de itens declarados separados por maisUmaDose. */
+void ListaDecl() :
+{}
+{
+  ItemDecl() ( <VIRGULA> ItemDecl() )*
+}
+
+/* Item declarado: apenas nome ou nome com valor inicial. */
+void ItemDecl() :
+{}
+{
+  <ID> ( <ATRIBUICAO> Expr() )?
+}
+
+/* Tipos primitivos da linguagem. */
+void Tipo() :
+{}
+{
+    <TIPO_INT>
+  | <TIPO_FLOAT>
+  | <TIPO_BOOL>
+  | <TIPO_STRING>
+}
+
+/* =========================================================
+ * COMANDOS INICIADOS POR ID
+ * ========================================================= */
+
+/* Um comando que começa com identificador. */
+void StmtFromId() :
+{}
+{
+  <ID> StmtIdSuffix()
+}
+
+/* Depois do ID, decide se é atribuição ou chamada de função. */
+void StmtIdSuffix() :
+{}
+{
+    <ATRIBUICAO> Expr()
+  | <ABRE_PAR> ArgsOpt() <FECHA_PAR>
+}
+
+/* =========================================================
+ * ENTRADA E SAÍDA
+ * ========================================================= */
+
+/* Comando de impressão ou leitura. */
+void Io() :
+{}
+{
+    <IMPRIME> <ABRE_PAR> PrintList() <FECHA_PAR>
+  | <ENTRADA> <ABRE_PAR> ReadList() <FECHA_PAR>
+}
+
+/* Lista de expressões para impressão. */
+void PrintList() :
+{}
+{
+  Expr() ( <VIRGULA> Expr() )*
+}
+
+/* Lista de identificadores para leitura. */
+void ReadList() :
+{}
+{
+  <ID> ( <VIRGULA> <ID> )*
+}
+
+/* =========================================================
+ * CONDICIONAL
+ * ========================================================= */
+
+/* Condicional com marcador opcional mestreAlambique. */
+void If() :
+{}
+{
+  ( <MARCA_SE> )?
+  <SE> <ABRE_PAR> Expr() <FECHA_PAR>
+  Bloco()
+  ElseOpt()
+}
+
+/* Else opcional. */
+void ElseOpt() :
+{}
+{
+  ( <SENAO> Bloco() )?
+}
+
+/* =========================================================
+ * LAÇOS
+ * ========================================================= */
+
+/* Laço while. */
+void While() :
+{}
+{
+  <ENQUANTO> <ABRE_PAR> Expr() <FECHA_PAR> Bloco()
+}
+
+/* Laço repeat-until. */
+void RepeatUntil() :
+{}
+{
+  <FAZ> Bloco() <ATE> <ABRE_PAR> Expr() <FECHA_PAR> <PONTO_VIRG>
+}
+
+/* Laço for. */
+void For() :
+{}
+{
+  <PARA> <ABRE_PAR>
+    ForInitOpt() <PONTO_VIRG>
+    ExprOpt() <PONTO_VIRG>
+    ForPostOpt()
+  <FECHA_PAR>
+  Bloco()
+}
+
+/* Inicialização opcional do for. */
+void ForInitOpt() :
+{}
+{
+  (
+      ( Tipo() | <TIPO_VAR> ) ListaDecl()
+    | IdStmtCab()
+  )?
+}
+
+/* Condição opcional do for. */
+void ExprOpt() :
+{}
+{
+  ( Expr() )?
+}
+
+/* Pós-execução opcional do for. */
+void ForPostOpt() :
+{}
+{
+  ( IdStmtCab() )?
+}
+
+/* Atribuição ou chamada de função dentro do cabeçalho do for. */
+void IdStmtCab() :
+{}
+{
+  <ID> StmtIdSuffix()
+}
+
+/* =========================================================
+ * FUNÇÕES E RETORNO
+ * ========================================================= */
+
+/* Declaração de função. */
+void DeclFun() :
+{}
+{
+  <FUNCAO> RetTipo() <ID> <ABRE_PAR> ParamsOpt() <FECHA_PAR> Bloco()
+}
+
+/* Tipo de retorno: tipo primitivo ou semDose. */
+void RetTipo() :
+{}
+{
+    Tipo()
+  | <VOID>
+}
+
+/* Parâmetros opcionais. */
+void ParamsOpt() :
+{}
+{
+  ( Params() )?
+}
+
+/* Lista de parâmetros separados por maisUmaDose. */
+void Params() :
+{}
+{
+  Param() ( <VIRGULA> Param() )*
+}
+
+/* Um parâmetro possui tipo e nome. */
+void Param() :
+{}
+{
+  Tipo() <ID>
+}
+
+/* Retorno sem expressão ou com expressão. */
+void Ret() :
+{}
+{
+  <RETORNO> ( Expr() )?
+}
+
+/* =========================================================
+ * ARGUMENTOS DE FUNÇÃO
+ * ========================================================= */
+
+/* Lista opcional de argumentos. */
+void ArgsOpt() :
+{}
+{
+  ( Expr() ( <VIRGULA> Expr() )* )?
+}
+
+/* =========================================================
+ * EXPRESSÕES
+ * A ordem abaixo implementa a precedência dos operadores:
+ * ||, &&, igualdade, relacionais, soma/subtração,
+ * multiplicação/divisão, unários e primários.
+ * ========================================================= */
+
+void Expr() :
+{}
+{
+  ExprOr()
+}
+
+void ExprOr() :
+{}
+{
+  ExprAnd() ( <OU_LOGICO> ExprAnd() )*
+}
+
+void ExprAnd() :
+{}
+{
+  ExprEq() ( <E_LOGICO> ExprEq() )*
+}
+
+void ExprEq() :
+{}
+{
+  ExprRel() ( ( <IGUALDADE> | <DIFERENTE> ) ExprRel() )*
+}
+
+void ExprRel() :
+{}
+{
+  ExprAdd() ( ( <MENOR> | <MAIOR> | <MENOR_IGUAL> | <MAIOR_IGUAL> ) ExprAdd() )*
+}
+
+void ExprAdd() :
+{}
+{
+  ExprMul() ( ( <SOMA> | <SUBTRACAO> ) ExprMul() )*
+}
+
+void ExprMul() :
+{}
+{
+  ExprUn() ( ( <MULTIPLICACAO> | <DIVISAO> ) ExprUn() )*
+}
+
+void ExprUn() :
+{}
+{
+    <NEGACAO> ExprUn()
+  | <SUBTRACAO> ExprUn()
+  | Prim()
+}
+
+/* Valor primário de uma expressão. */
+void Prim() :
+{}
+{
+    <NUMERO_FLOAT>
+  | <NUMERO_INT>
+  | <TRUE>
+  | <FALSE>
+  | <STR>
+  | <ID> PrimIdSuffix()
+  | <ABRE_PAR> Expr() <FECHA_PAR>
+}
+
+/* Depois de um ID dentro de expressão, decide se é variável ou chamada. */
+void PrimIdSuffix() :
+{}
+{
+  ( <ABRE_PAR> ArgsOpt() <FECHA_PAR> )?
+}
