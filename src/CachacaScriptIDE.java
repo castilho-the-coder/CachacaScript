@@ -190,19 +190,22 @@ public class CachacaScriptIDE {
         tableModelTokens.setRowCount(0);
 
         String conteudo = txtCodigo.getText();
-        StringReader sr = new StringReader(conteudo);
 
         // Limpa a lista de erros antes de começar a compilação
         compiladorCachacaScript.listaErros.clear();
         compiladorCachacaScript.linhasComErros.clear();
 
+        // Inicializa o parser estático uma única vez caso ainda não tenha sido
+        if (parser == null) {
+            parser = new compiladorCachacaScript(new StringReader(""));
+        }
+
         // 1. Fase Léxica: Extração e listagem de todos os tokens na tabela
         try {
             StringReader lexReader = new StringReader(conteudo);
-            SimpleCharStream lexStream = new SimpleCharStream(lexReader, 1, 1);
-            compiladorCachacaScriptTokenManager lexManager = new compiladorCachacaScriptTokenManager(lexStream);
+            compiladorCachacaScript.ReInit(lexReader);
             
-            Token tok = lexManager.getNextToken();
+            Token tok = compiladorCachacaScript.getNextToken();
             while (tok != null && tok.kind != compiladorCachacaScriptConstants.EOF) {
                 String lexeme = tok.image;
                 String typeName = compiladorCachacaScriptConstants.tokenImage[tok.kind];
@@ -216,18 +219,15 @@ public class CachacaScriptIDE {
                     tok.beginLine,
                     tok.beginColumn
                 });
-                tok = lexManager.getNextToken();
+                tok = compiladorCachacaScript.getNextToken();
             }
         } catch (TokenMgrError lexError) {
             // Os erros léxicos serão capturados e reportados pelo compilador principal
         } catch (Exception ignored) {}
 
         // 2. Fase Sintática e AST
-        if (parser == null) {
-            parser = new compiladorCachacaScript(sr);
-        } else {
-            compiladorCachacaScript.ReInit(sr);
-        }
+        StringReader parserReader = new StringReader(conteudo);
+        compiladorCachacaScript.ReInit(parserReader);
 
         try {
             txtSaida.append("Lendo programa CachaçaScript da tela...\n");
