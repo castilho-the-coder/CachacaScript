@@ -1,4 +1,8 @@
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.text.Element;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.DefaultMutableTreeNode;
 import java.awt.*;
@@ -11,6 +15,9 @@ public class CachacaScriptIDE {
     private JTextArea txtCodigo;
     private JTextArea txtSaida;
     private JTree treeAST;
+    private JTable tableTokens;
+    private DefaultTableModel tableModelTokens;
+    private JTextArea txtLinhas;
     private JButton btnCompilar;
     private static compiladorCachacaScript parser = null;
 
@@ -28,22 +35,79 @@ public class CachacaScriptIDE {
 
     public void init() {
         // Principal Frame
-        frame = new JFrame("CachaçaScript IDE - Edição com Árvore Sintática");
+        frame = new JFrame("CachaçaScript IDE - Edição com Árvore Sintática e Análise Léxica");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(900, 650);
+        frame.setSize(950, 680);
         frame.setLayout(new BorderLayout());
+
+        // Line Counter JTextArea
+        txtLinhas = new JTextArea("1");
+        txtLinhas.setFont(new Font("Consolas", Font.PLAIN, 14));
+        txtLinhas.setBackground(new Color(230, 230, 230));
+        txtLinhas.setForeground(Color.GRAY);
+        txtLinhas.setEditable(false);
+        txtLinhas.setFocusable(false);
+        txtLinhas.setBorder(BorderFactory.createEmptyBorder(1, 5, 0, 5));
 
         // Code Editor
         txtCodigo = new JTextArea();
         txtCodigo.setFont(new Font("Consolas", Font.PLAIN, 14));
         txtCodigo.setTabSize(4);
+        txtCodigo.setBorder(BorderFactory.createEmptyBorder(1, 2, 0, 0));
+
+        // Document Listener to sync Line Numbers
+        txtCodigo.getDocument().addDocumentListener(new DocumentListener() {
+            private String getLineNumbersText() {
+                Element root = txtCodigo.getDocument().getDefaultRootElement();
+                StringBuilder text = new StringBuilder("1");
+                for (int i = 2; i <= root.getElementCount(); i++) {
+                    text.append("\n").append(i);
+                }
+                return text.toString();
+            }
+
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                txtLinhas.setText(getLineNumbersText());
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                txtLinhas.setText(getLineNumbersText());
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                txtLinhas.setText(getLineNumbersText());
+            }
+        });
+
         JScrollPane scrollCodigo = new JScrollPane(txtCodigo);
+        scrollCodigo.setRowHeaderView(txtLinhas);
         
-        // AST JTree
+        // JTabbedPane for AST Tree and Tokens list
+        JTabbedPane tabbedPane = new JTabbedPane();
+
+        // Tab 1: AST JTree
         DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode("Árvore Sintática (AST)");
         treeAST = new JTree(rootNode);
         treeAST.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         JScrollPane scrollTree = new JScrollPane(treeAST);
+        tabbedPane.addTab("🌳 Árvore Sintática (AST)", scrollTree);
+
+        // Tab 2: Tokens JTable
+        String[] columnNames = {"Lexema", "Tipo de Token", "Linha", "Coluna"};
+        tableModelTokens = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        tableTokens = new JTable(tableModelTokens);
+        tableTokens.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        tableTokens.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
+        JScrollPane scrollTable = new JScrollPane(tableTokens);
+        tabbedPane.addTab("📋 Tabela de Tokens", scrollTable);
 
         // Console Output
         txtSaida = new JTextArea();
@@ -52,23 +116,23 @@ public class CachacaScriptIDE {
         txtSaida.setBackground(new Color(245, 245, 245));
         JScrollPane scrollSaida = new JScrollPane(txtSaida);
 
-        // Top Horizontal Split (Code Editor on left, AST on right)
+        // Top Horizontal Split (Code Editor on left, Tabs on right)
         JSplitPane topSplitPane = new JSplitPane(
             JSplitPane.HORIZONTAL_SPLIT,
             scrollCodigo,
-            scrollTree
+            tabbedPane
         );
-        topSplitPane.setDividerLocation(500);
-        topSplitPane.setResizeWeight(0.7);
+        topSplitPane.setDividerLocation(480);
+        topSplitPane.setResizeWeight(0.6);
 
-        // Main Vertical Split (Editor+AST on top, Console on bottom)
+        // Main Vertical Split (Editor+Tabs on top, Console on bottom)
         JSplitPane mainSplitPane = new JSplitPane(
             JSplitPane.VERTICAL_SPLIT,
             topSplitPane,
             scrollSaida
         );
-        mainSplitPane.setDividerLocation(420);
-        mainSplitPane.setResizeWeight(0.6);
+        mainSplitPane.setDividerLocation(430);
+        mainSplitPane.setResizeWeight(0.65);
 
         frame.add(mainSplitPane, BorderLayout.CENTER);
 
@@ -85,7 +149,7 @@ public class CachacaScriptIDE {
         panelSuperior.add(btnCompilar);
         frame.add(panelSuperior, BorderLayout.NORTH);
 
-        // Load a default test structure if we can, or just start empty
+        // Load a default test structure
         txtCodigo.setText(
             "abreAButelada\n" +
             "  \n" +
@@ -122,6 +186,8 @@ public class CachacaScriptIDE {
         txtSaida.setText("");
         // Remove todos os destaques antigos
         txtCodigo.getHighlighter().removeAllHighlights();
+        // Limpa a tabela de tokens
+        tableModelTokens.setRowCount(0);
 
         String conteudo = txtCodigo.getText();
         StringReader sr = new StringReader(conteudo);
@@ -130,6 +196,33 @@ public class CachacaScriptIDE {
         compiladorCachacaScript.listaErros.clear();
         compiladorCachacaScript.linhasComErros.clear();
 
+        // 1. Fase Léxica: Extração e listagem de todos os tokens na tabela
+        try {
+            StringReader lexReader = new StringReader(conteudo);
+            SimpleCharStream lexStream = new SimpleCharStream(lexReader, 1, 1);
+            compiladorCachacaScriptTokenManager lexManager = new compiladorCachacaScriptTokenManager(lexStream);
+            
+            Token tok = lexManager.getNextToken();
+            while (tok != null && tok.kind != compiladorCachacaScriptConstants.EOF) {
+                String lexeme = tok.image;
+                String typeName = compiladorCachacaScriptConstants.tokenImage[tok.kind];
+                // Limpa aspas do nome gerado pelo JavaCC
+                if (typeName.startsWith("\"") && typeName.endsWith("\"")) {
+                    typeName = typeName.substring(1, typeName.length() - 1);
+                }
+                tableModelTokens.addRow(new Object[]{
+                    lexeme,
+                    typeName,
+                    tok.beginLine,
+                    tok.beginColumn
+                });
+                tok = lexManager.getNextToken();
+            }
+        } catch (TokenMgrError lexError) {
+            // Os erros léxicos serão capturados e reportados pelo compilador principal
+        } catch (Exception ignored) {}
+
+        // 2. Fase Sintática e AST
         if (parser == null) {
             parser = new compiladorCachacaScript(sr);
         } else {
